@@ -1,11 +1,12 @@
-from oscar.apps.payment.abstract_models import *
+from decimal import Decimal
+
+from django.db import models
+from django.template.defaultfilters import slugify
+from django.utils.translation import ugettext as _
+from django.conf import settings
 
 
-class Transaction(AbstractTransaction):
-    pass
-
-<<<<<<< HEAD
-class Transaction(models.Model):
+class AbstractTransaction(models.Model):
     """
     A transaction for payment sources which need a secondary 'transaction' to
     actually take the money
@@ -25,24 +26,18 @@ class Transaction(models.Model):
     reference = models.CharField(_("Reference"), max_length=128, null=True)
     status = models.CharField(_("Status"), max_length=128, null=True)
     date_created = models.DateTimeField(_("Date Created"), auto_now_add=True)
-=======
 
-class Source(AbstractSource):
-    pass
+    def __unicode__(self):
+        return _("%(type)s of %(amount).2f") % {
+            'type': self.txn_type, 'amount': self.amount}
 
-
-class SourceType(AbstractSourceType):
-    pass
->>>>>>> 2787b4f... Split payment models into abstract and concrete
-
-
-<<<<<<< HEAD
     class Meta:
+        abstract = True
         verbose_name = _("Transaction")
         verbose_name_plural = _("Transactions")
 
 
-class Source(models.Model):
+class AbstractSource(models.Model):
     """
     A source of payment for an order.
 
@@ -85,7 +80,12 @@ class Source(models.Model):
     # the source is saved for the first time
     deferred_txns = None
 
+    # The concrete transaction model. We need the concrete transaction model for
+    # creating transactions.
+    txn_class = models.get_model('payment', 'Transaction')
+
     class Meta:
+        abstract = True
         verbose_name = _("Source")
         verbose_name_plural = _("Sources")
 
@@ -97,7 +97,7 @@ class Source(models.Model):
         return description
 
     def save(self, *args, **kwargs):
-        super(Source, self).save(*args, **kwargs)
+        super(AbstractSource, self).save(*args, **kwargs)
         if self.deferred_txns:
             for txn in self.deferred_txns:
                 self._create_transaction(*txn)
@@ -119,7 +119,7 @@ class Source(models.Model):
 
     def _create_transaction(self, txn_type, amount, reference=None,
                             status=None):
-        Transaction.objects.create(source=self,
+        self.txn_class.objects.create(source=self,
                                    txn_type=txn_type,
                                    amount=amount,
                                    reference=reference,
@@ -132,7 +132,7 @@ class Source(models.Model):
         self.amount_allocated += amount
         self.save()
         self._create_transaction(
-            Transaction.AUTHORISE, amount, reference, status)
+            self.txn_class.AUTHORISE, amount, reference, status)
     allocate.alters_data = True
 
     def debit(self, amount=None, reference=None, status=None):
@@ -143,7 +143,7 @@ class Source(models.Model):
             amount = self.balance()
         self.amount_debited += amount
         self.save()
-        self._create_transaction(Transaction.DEBIT, amount, reference, status)
+        self._create_transaction(self.txn_class.DEBIT, amount, reference, status)
     debit.alters_data = True
 
     def refund(self, amount, reference=None, status=None):
@@ -152,7 +152,7 @@ class Source(models.Model):
         """
         self.amount_refunded += amount
         self.save()
-        self._create_transaction(Transaction.REFUND, amount, reference, status)
+        self._create_transaction(self.txn_class.REFUND, amount, reference, status)
     refund.alters_data = True
 
     @property
@@ -163,7 +163,7 @@ class Source(models.Model):
         return self.amount_debited - self.amount_refunded
 
 
-class SourceType(models.Model):
+class AbstractSourceType(models.Model):
     """
     A type of payment source.
 
@@ -175,6 +175,7 @@ class SourceType(models.Model):
        help_text=_("This is used within forms to identify this source type"))
 
     class Meta:
+        abstract = True
         verbose_name = _("Source Type")
         verbose_name_plural = _("Source Types")
 
@@ -184,10 +185,10 @@ class SourceType(models.Model):
     def save(self, *args, **kwargs):
         if not self.code:
             self.code = slugify(self.name)
-        super(SourceType, self).save(*args, **kwargs)
+        super(AbstractSourceType, self).save(*args, **kwargs)
 
 
-class Bankcard(models.Model):
+class AbstractBankcard(models.Model):
     user = models.ForeignKey('auth.User', related_name='bankcards',
                              verbose_name=_("User"))
     card_type = models.CharField(_("Card Type"), max_length=128)
@@ -200,16 +201,13 @@ class Bankcard(models.Model):
         _("Partner Reference"), max_length=255, null=True, blank=True)
 
     class Meta:
+        abstract = True
         verbose_name = _("Bankcard")
         verbose_name_plural = _("Bankcards")
 
     def save(self, *args, **kwargs):
         self.number = self._get_obfuscated_number()
-        super(Bankcard, self).save(*args, **kwargs)
+        super(AbstractBankcard, self).save(*args, **kwargs)
 
     def _get_obfuscated_number(self):
         return u"XXXX-XXXX-XXXX-%s" % self.number[-4:]
-=======
-class Bankcard(AbstractBankcard):
-    pass
->>>>>>> 2787b4f... Split payment models into abstract and concrete
