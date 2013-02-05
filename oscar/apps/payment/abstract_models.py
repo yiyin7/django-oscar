@@ -23,8 +23,8 @@ class AbstractTransaction(models.Model):
     AUTHORISE, DEBIT, REFUND = 'Authorise', 'Debit', 'Refund'
     txn_type = models.CharField(_("Type"), max_length=128, blank=True)
     amount = models.DecimalField(_("Amount"), decimal_places=2, max_digits=12)
-    reference = models.CharField(_("Reference"), max_length=128, null=True)
-    status = models.CharField(_("Status"), max_length=128, null=True)
+    reference = models.CharField(_("Reference"), max_length=128, blank=True)
+    status = models.CharField(_("Status"), max_length=128, blank=True)
     date_created = models.DateTimeField(_("Date Created"), auto_now_add=True)
 
     def __unicode__(self):
